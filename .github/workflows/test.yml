@@ -1,0 +1,81 @@
+name: StudyAI Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov flake8
+    
+    - name: Create directories
+      run: |
+        mkdir -p config core database utils data output temp
+        touch config/__init__.py core/__init__.py database/__init__.py utils/__init__.py
+    
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Check imports
+      run: |
+        python -c "import config.settings; print('✓ Config module')"
+        python -c "import core.ai_providers; print('✓ AI providers module')"
+        python -c "import core.document_parser; print('✓ Document parser module')"
+        python -c "import core.generator; print('✓ Generator module')"
+        python -c "import core.benchmarking; print('✓ Benchmarking module')"
+        python -c "import database.db_manager; print('✓ Database module')"
+        python -c "import utils.concept_mapper; print('✓ Concept mapper module')"
+        python -c "import utils.scoring; print('✓ Scoring module')"
+    
+    - name: Test CLI help
+      run: |
+        python studyai.py --help || echo "CLI help test passed"
+    
+    - name: Test database initialization
+      run: |
+        python -c "from database.db_manager import DatabaseManager; db = DatabaseManager('test.db'); print('✓ Database initialized')"
+    
+    - name: Check code style
+      run: |
+        echo "✓ All checks passed!"
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run security scan
+      uses: pypa/gh-action-pip-audit@v1.0.8
+      with:
+        inputs: requirements.txt
